@@ -61,13 +61,20 @@ def main():
     # Initialize the Lidar
     lidar = init_lidar()
 
-    # Start scanning and generate the CSV file
-    csv_file = "lidar_data.csv"
+    # Create the /scripts/data directory if it doesn't exist
+    data_dir = "/usr/src/app/scripts/data"
+    if not os.path.exists(data_dir):
+        os.makedirs(data_dir)
+        print(f"Created directory: {data_dir}")
+
+    # Start scanning and generate the CSV file in the /scripts/data directory
+    csv_file = os.path.join(data_dir, "lidar_data.csv")
     start_scanning(lidar, csv_file)
 
     # Deinitialize the Lidar after use
     lidar.turnOff()
     lidar.disconnecting()
+
 
 if __name__ == "__main__":
     main()
