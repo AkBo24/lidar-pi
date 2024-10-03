@@ -42,6 +42,6 @@ ENV PYTHONPAT="/usr/src/app/scripts"
 # Expose the Django default port (8000)
 EXPOSE 8000
 
- CMD ["/bin/bash"]
-# CMD ["python", "/usr/src/app/lidar_service/manage.py", "runserver", "0.0.0.0:8000"]
+# CMD ["/bin/bash"]
+ CMD ["python", "/usr/src/app/lidar_service/manage.py", "runserver", "0.0.0.0:8000"]
 
