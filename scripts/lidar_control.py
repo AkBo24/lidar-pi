@@ -33,11 +33,51 @@ def init_lidar():
 
     return lidar
 
-def generate_csv():
-    pass
+def generate_csv(file_name, data, timestamp):
+    """
+    Appends the Lidar scan data to the specified CSV file.
+    
+    :param file_name: Path to the CSV file.
+    :param data: List of Lidar scan points.
+    :param timestamp: The timestamp when the scan occurred.
+    """
+    # Ensure the directory for the file exists
+    directory = os.path.dirname(file_name)
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
+    # Open the file in append mode and write data
+    with open(file_name, mode='a', newline='') as file:
+        writer = csv.writer(file)
+
+        # Write each point in the data to the CSV with the corresponding timestamp
+        for point in data:
+            writer.writerow([timestamp, point.angle, point.range])  # Epoch Time, Angle, Distanc
 
 def start_scanning(lidar, csv_file):
-    pass
+    global stop_event
+
+    lidar.turnOn()
+
+    with open(csv_file, mode='w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(["Epoch Time", "Angle", "Distance"])  # Header row
+
+    print("Lidar scanning started.")
+    
+    while not stop_event.is_set():  # Check if stop_event is set to stop the loop
+        outscan = ydlidar.LaserScan()  # Create a LaserScan object to store the scan data
+        ret = lidar.doProcessSimple(outscan)  # Pass outscan to capture data
+
+        if ret:
+            epoch_time = time.time()  # Get current epoch time
+            generate_csv(csv_file, outscan.points, epoch_time)
+            time.sleep(1)  # Adjust the delay as needed
+        else:
+            print("Failed to get Lidar data.")
+
+    # Stop the Lidar when stop_event is set
+    lidar.turnOff()
 
 def start_lidar(filename="lidar_data.csv"):
     """
