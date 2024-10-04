@@ -3,6 +3,18 @@ import sys
 import csv
 import time
 import ydlidar
+import subprocess
+import signal
+import threading
+
+
+# track status of lidar
+lidar_process = None
+lidar = None
+
+ERROR = lambda error_code, message : {'error_code': error_code, 'message': message}
+SUCCESS = lambda status, message : {'status': status, 'message': message}
+stop_event = Threading.Event() # todo: learn more about thread events and ensure this impelmentation is right
 
 def init_lidar():
     lidar = ydlidar.CYdLidar()
@@ -18,64 +30,63 @@ def init_lidar():
     if not ret:
         print("Lidar initialization failed.")
         sys.exit(1)
-    
+
     return lidar
 
-def generate_csv(file_name, data, timestamp):
-    with open(file_name, mode='a', newline='') as file:  # 'a' for appending to the file
-        writer = csv.writer(file)
-        for point in data:
-            writer.writerow([timestamp, point.angle, point.range])  # Epoch Time, Angle, Distance
+def generate_csv():
+    pass
 
 def start_scanning(lidar, csv_file):
-    lidar.turnOn()
+    pass
+
+def start_lidar(filename="lidar_data.csv"):
+    """
+    1. init the lidar
+    2. create data directory if it doesnt exist
+    3. check if the file exists, ret error if it does not
+    4. create the thread for the lidar
+    5. start the thread for the lidar
+    """
+    global lidar_process, lidar, stop_event
     
-    # Write the header only once, at the start of the CSV file
-    with open(csv_file, mode='w', newline='') as file:
-        writer = csv.writer(file)
-        writer.writerow(["Epoch Time", "Angle", "Distance"])  # Header row
+    if lidar_process or lidar:
+        return ERROR(400, 'Lidar is already running')
 
-    print("Lidar scanning... Press Ctrl+C to stop.")
-
-    try:
-        while True:
-            outscan = ydlidar.LaserScan()  # Create a LaserScan object to store the scan data
-            ret = lidar.doProcessSimple(outscan)  # Pass outscan to capture data
-
-            if ret:
-                # Get current epoch time
-                epoch_time = time.time()
-                
-                # Append data to the CSV with epoch time
-                generate_csv(csv_file, outscan.points, epoch_time)
-                
-                time.sleep(1)  # Adjust the delay as needed
-            else:
-                print("Failed to get Lidar data.")
-
-    except KeyboardInterrupt:
-        print("Stopping scan.")
-        lidar.turnOff()
-
-def main():
-    # Initialize the Lidar
     lidar = init_lidar()
 
-    # Create the /scripts/data directory if it doesn't exist
-    data_dir = "/usr/src/app/scripts/data"
-    if not os.path.exists(data_dir):
-        os.makedirs(data_dir)
-        print(f"Created directory: {data_dir}")
+    data_dir = os.path.join('/usr', 'src', 'app','scripts','data')
+    if not os.path.dir(data_isdir):
+        os.mkdir(data_dir)
 
-    # Start scanning and generate the CSV file in the /scripts/data directory
-    csv_file = os.path.join(data_dir, "lidar_data.csv")
-    start_scanning(lidar, csv_file)
+    if os.path.isfile(os.path.join(data_dir, filename)):
+        return ERROR(400, f"File {filename} already exists")
+    csv_file = os.path.join(data_dir, filename)
 
-    # Deinitialize the Lidar after use
+    stop_event.clear() # todo: flush the events?
+
+    lidar_process = threading.Thread(target=start_scanning, args=(lidar, csv_file))
+    lidar_process.start()
+
+    return SUCCESS(200, "Lidar Scanning Started") 
+
+def stop_lidar():
+    global lidar_process, lidar
+    if not lidar_process or not lidar:
+        return ERROR(400, 'Lidar is not running')
+
+    stop_event.set() # todo: check if this signals the thread to stop
+    lidar_process.join() # todo: check if this waits for the thread to finish
+    lidar_process = None
+
+    cleanup()
+    return SUCCESS(200, 'Lidar stopped successfully')
+
+def cleanup():
+    global lidar
+    if not lidar:
+        return ERROR(400, 'Cleanup called but lidar not initialized.')
     lidar.turnOff()
     lidar.disconnecting()
 
-
-if __name__ == "__main__":
-    main()
-
+    lidar = None
+    print('Lidar cleanup complete.')
