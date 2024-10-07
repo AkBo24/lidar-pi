@@ -14,7 +14,7 @@ lidar = None
 
 ERROR = lambda error_code, message : {'error_code': error_code, 'message': message}
 SUCCESS = lambda status, message : {'status': status, 'message': message}
-stop_event = Threading.Event() # todo: learn more about thread events and ensure this impelmentation is right
+stop_event = threading.Event() 
 
 def init_lidar():
     lidar = ydlidar.CYdLidar()
@@ -88,21 +88,22 @@ def start_lidar(filename="lidar_data.csv"):
     5. start the thread for the lidar
     """
     global lidar_process, lidar, stop_event
-    
+    print('************************************/nstarting lidar/n******************************')
+
     if lidar_process or lidar:
         return ERROR(400, 'Lidar is already running')
 
     lidar = init_lidar()
-
+    print('1.init lidar')
     data_dir = os.path.join('/usr', 'src', 'app','scripts','data')
-    if not os.path.dir(data_isdir):
+    if not os.path.isdir(data_dir):
         os.mkdir(data_dir)
 
     if os.path.isfile(os.path.join(data_dir, filename)):
         return ERROR(400, f"File {filename} already exists")
     csv_file = os.path.join(data_dir, filename)
 
-    stop_event.clear() # todo: flush the events?
+    stop_event.clear()
 
     lidar_process = threading.Thread(target=start_scanning, args=(lidar, csv_file))
     lidar_process.start()
@@ -114,8 +115,8 @@ def stop_lidar():
     if not lidar_process or not lidar:
         return ERROR(400, 'Lidar is not running')
 
-    stop_event.set() # todo: check if this signals the thread to stop
-    lidar_process.join() # todo: check if this waits for the thread to finish
+    stop_event.set()
+    lidar_process.join()
     lidar_process = None
 
     cleanup()

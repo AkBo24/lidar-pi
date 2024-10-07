@@ -159,3 +159,24 @@ The service will be available within the home network by binding to `0.0.0.0`. P
 
 ---
 
+Here is my implementations of the stop and cleanup functions:
+```
+ERROR = lambda error_code, message : {'error_code': error_code, 'message': message}
+SUCCESS = lambda status, message : {'status': status, 'message': message}
+
+def stop_lidar():
+    global lidar_process, lidar
+    if not lidar_process or not lidar:
+        return ERROR(400, 'Lidar is not running')
+    lidar_process = None
+    cleanup()
+
+def cleanup():
+    global lida
+    if not lidar:
+        return ERROR(400, 'Cleanup called but lidar not initialized...')
+    lidar.turnoff()
+    lidar.disconnecting()
+
+```
+Note that I created two lambda functions to return errors or statuses. I also added a lidar global variable.
