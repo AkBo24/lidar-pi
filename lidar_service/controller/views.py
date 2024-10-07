@@ -10,10 +10,8 @@ from rest_framework.decorators import action
 
 from .models import LidarFile
 from .serializers import LidarFileSerializer
+# imported through path (look at init.py)
 from lidar_control import start_lidar, stop_lidar
-
-import sys
-print(sys.path)
 
 # Create your views here.
 def index(req):
@@ -47,7 +45,7 @@ class LidarViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['get'])
     def start(self, request):
         try:
-            start_lidar()  # Replace with your function to start the Lidar
+            start_lidar('run-1')
             return Response({"message": "Lidar started successfully"}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

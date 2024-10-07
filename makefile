@@ -17,6 +17,22 @@ clean-container:
 		docker rm $(DOCKER_CONTAINER_NAME); \
 	fi
 
+# Stop the running container
+stop:
+	docker stop $(DOCKER_CONTAINER_NAME)
+
+# Remove the container after stopping it
+clean: stop
+	docker rm $(DOCKER_CONTAINER_NAME)
+
+# Run Django makemigrations inside the container
+makemigrations:
+	docker exec -it $(DOCKER_CONTAINER_NAME) python /usr/src/app/lidar_service/manage.py makemigrations
+
+# Run Django migrate inside the container
+migrate:
+	docker exec -it $(DOCKER_CONTAINER_NAME) python /usr/src/app/lidar_service/manage.py migrate
+	
 # Run the container in interactive mode with volume mount
 run: clean-container
 	docker run --name $(DOCKER_CONTAINER_NAME) \
@@ -33,21 +49,8 @@ run-detached: clean-container
 		-v $(LOCAL_APP_DIR):$(CONTAINER_APP_DIR) \
 		-d $(DOCKER_IMAGE)
 
-# Stop the running container
-stop:
-	docker stop $(DOCKER_CONTAINER_NAME)
-
-# Remove the container after stopping it
-clean: stop
-	docker rm $(DOCKER_CONTAINER_NAME)
-
-# Run Django makemigrations inside the container
-makemigrations:
-	docker exec -it $(DOCKER_CONTAINER_NAME) python /usr/src/app/lidar_service/manage.py makemigrations
-
-# Run Django migrate inside the container
-migrate:
-	docker exec -it $(DOCKER_CONTAINER_NAME) python /usr/src/app/lidar_service/manage.py migrate
+shell:
+	docker exec -it lidar-container sh 
 
 # Shortcut to build, run, and start the container
 build-run: build run

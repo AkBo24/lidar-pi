@@ -95,13 +95,15 @@ def start_lidar(filename="lidar_data.csv"):
 
     lidar = init_lidar()
     print('1.init lidar')
+    """
     data_dir = os.path.join('/usr', 'src', 'app','scripts','data')
     if not os.path.isdir(data_dir):
         os.mkdir(data_dir)
 
     if os.path.isfile(os.path.join(data_dir, filename)):
         return ERROR(400, f"File {filename} already exists")
-    csv_file = os.path.join(data_dir, filename)
+    """
+    csv_file = os.path.join('lidar_files', filename)
 
     stop_event.clear()
 
