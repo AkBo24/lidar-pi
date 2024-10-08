@@ -13,7 +13,6 @@ from .serializers import LidarFileSerializer
 # imported through path (look at init.py)
 from lidar_control import start_lidar, stop_lidar
 
-# Create your views here.
 def index(req):
     """
     A view to trigger the Lidar process and return a response.
@@ -40,6 +39,21 @@ class LidarFileViewSet(viewsets.ModelViewSet):
             'message': 'File created successfully',
             'file_path': lidar_file.file.url
         })
+
+    @action(detail=False, methods=['get'])
+    def download(self, request, filename=None):
+        try:
+            lidar_file = LidarFile.objects.get(filename=filename)
+            file_path = lidar_file.file.path
+
+            with open(file_path, 'rb') as f:
+                response = HttpResponse(f.read(), content_type='application/octet-stream')
+                response['Content-Disposition'] = f'attachment; filename={lidar_file.filename}'
+                return response
+        except LidarFile.DoesNotExist:
+            return Response({'error': 'File not found'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class LidarViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['post'])
