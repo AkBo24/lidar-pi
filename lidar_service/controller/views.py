@@ -13,6 +13,8 @@ from .serializers import LidarFileSerializer
 # imported through path (look at init.py)
 from lidar_control import start_lidar, stop_lidar
 
+import h5py
+
 def index(req):
     """
     A view to trigger the Lidar process and return a response.
@@ -30,9 +32,10 @@ class LidarFileViewSet(viewsets.ModelViewSet):
     serializer_class = LidarFileSerializer
 
     def create(self, request, *args, **kwargs):
-        filename = request.data.get('filename', 'linear_data.csv')
+        filename = request.data.get('filename', 'linear_data.h5')
+        if not filename.endswith('.h5'):
+            filename += '.h5'
         lidar_file = LidarFile(filename=filename) 
-
         lidar_file.file.save(filename, ContentFile(''), save=True)
 
         return Response({

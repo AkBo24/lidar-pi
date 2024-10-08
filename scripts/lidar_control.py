@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import os
 import sys
 import csv
@@ -7,6 +9,8 @@ import subprocess
 import signal
 import threading
 
+import h5py
+import numpy as np
 
 # track status of lidar
 lidar_process = None
@@ -33,51 +37,89 @@ def init_lidar():
 
     return lidar
 
-def generate_csv(file_name, data, timestamp):
+def append_to_hdf5(timestamp_dataset, angle_dataset, distance_dataset, epoch_time, angles, distances):
     """
-    Appends the Lidar scan data to the specified CSV file.
+    Appends data to the HDF5 datasets for the LiDAR readings.
     
-    :param file_name: Path to the CSV file.
-    :param data: List of Lidar scan points.
-    :param timestamp: The timestamp when the scan occurred.
+    :param timestamp_dataset: The HDF5 dataset for timestamps.
+    :param angle_dataset: The HDF5 dataset for angles.
+    :param distance_dataset: The HDF5 dataset for distances.
+    :param epoch_time: The timestamp for the current scan.
+    :param angles: List of angle readings.
+    :param distances: List of distance readings.
     """
-    # Ensure the directory for the file exists
-    directory = os.path.dirname(file_name)
-    if not os.path.exists(directory):
-        os.makedirs(directory)
+    # Calculate the number of new entries
+    num_new_entries = len(angles)
 
-    # Open the file in append mode and write data
-    with open(file_name, mode='a', newline='') as file:
-        writer = csv.writer(file)
+    # Resize the datasets to accommodate the new data
+    timestamp_dataset.resize(timestamp_dataset.shape[0] + num_new_entries, axis=0)
+    angle_dataset.resize(angle_dataset.shape[0] + num_new_entries, axis=0)
+    distance_dataset.resize(distance_dataset.shape[0] + num_new_entries, axis=0)
 
-        # Write each point in the data to the CSV with the corresponding timestamp
-        for point in data:
-            writer.writerow([timestamp, point.angle, point.range])  # Epoch Time, Angle, Distanc
+    # Append the new data to the end of the datasets
+    timestamp_dataset[-num_new_entries:] = np.full(num_new_entries, epoch_time)
+    angle_dataset[-num_new_entries:] = angles
+    distance_dataset[-num_new_entries:] = distances
 
-def start_scanning(lidar, csv_file):
+def start_scanning(lidar, h5_file):
     global stop_event
 
+    # Turn on the LiDAR sensor
     lidar.turnOn()
+    print("LiDAR scanning started.")
 
-    with open(csv_file, mode='w', newline='') as file:
-        writer = csv.writer(file)
-        writer.writerow(["Epoch Time", "Angle", "Distance"])  # Header row
+    # Open the HDF5 file in append mode to write data
+    with h5py.File(h5_file, 'a') as f:
+        # Get today's date as the group name
+        today_date = datetime.now().strftime('%Y_%m_%d')
+        
+        # Ensure the group for today exists
+        if today_date not in f:
+            print(f"Error: Group '{today_date}' not found in the HDF5 file.")
+            return
 
-    print("Lidar scanning started.")
-    
-    while not stop_event.is_set():  # Check if stop_event is set to stop the loop
-        outscan = ydlidar.LaserScan()  # Create a LaserScan object to store the scan data
-        ret = lidar.doProcessSimple(outscan)  # Pass outscan to capture data
+        # Access today's group
+        day_group = f[today_date]
+        
+        # Find the last session created (or any other session as needed)
+        existing_sessions = [key for key in day_group.keys() if key.startswith('session_')]
+        latest_session = max(existing_sessions, default=None)
+        
+        if latest_session is None:
+            print(f"Error: No session found under '{today_date}' group.")
+            return
 
-        if ret:
-            epoch_time = time.time()  # Get current epoch time
-            generate_csv(csv_file, outscan.points, epoch_time)
-            time.sleep(1)  # Adjust the delay as needed
-        else:
-            print("Failed to get Lidar data.")
+        # Access the session group
+        session_group = day_group[latest_session]
 
-    # Stop the Lidar when stop_event is set
+        # Access the datasets for timestamp, angle, and distance
+        timestamp_dataset = session_group['readings/timestamp']
+        angle_dataset = session_group['readings/angle']
+        distance_dataset = session_group['readings/distance']
+
+        while not stop_event.is_set():
+            outscan = ydlidar.LaserScan()  # Create a LaserScan object to store the scan data
+            ret = lidar.doProcessSimple(outscan)  # Pass outscan to capture data
+
+            if ret:
+                epoch_time = time.time()  # Get the current epoch time
+
+                # Extract the angle and distance data from the scan points
+                angles = [point.angle for point in outscan.points]
+                distances = [point.range for point in outscan.points]
+
+                # Append data to the HDF5 file
+                append_to_hdf5(timestamp_dataset, angle_dataset, distance_dataset, epoch_time, angles, distances)
+
+                # Adjust the delay as needed (e.g., for a 1-second interval)
+                time.sleep(1)
+            else:
+                print("Failed to get LiDAR data.")
+
+    # Turn off the LiDAR when `stop_event` is set
     lidar.turnOff()
+    print("LiDAR scanning stopped.")
+
 
 def start_lidar(filename="lidar_data.csv"):
     """
@@ -88,26 +130,40 @@ def start_lidar(filename="lidar_data.csv"):
     5. start the thread for the lidar
     """
     global lidar_process, lidar, stop_event
-    print('************************************/nstarting lidar/n******************************')
 
     if lidar_process or lidar:
         return ERROR(400, 'Lidar is already running')
 
     lidar = init_lidar()
-    print('1.init lidar')
-    """
-    data_dir = os.path.join('/usr', 'src', 'app','scripts','data')
-    if not os.path.isdir(data_dir):
-        os.mkdir(data_dir)
 
-    if os.path.isfile(os.path.join(data_dir, filename)):
-        return ERROR(400, f"File {filename} already exists")
-    """
-    csv_file = os.path.join('lidar_files', filename)
-
+    h5_file = os.path.join('lidar_files', filename)
+    with h5py.File(h5_file, 'a') as f:
+        # Generate today's date as the group name
+        today_date = datetime.now().strftime('%Y_%m_%d')
+        
+        # Check if the day group exists, and create it if not
+        if today_date not in f:
+            day_group = f.create_group(today_date)
+            print(f"Group '{today_date}' created.")
+        else:
+            day_group = f[today_date]
+        
+        # Get the existing session subgroups in the day's group
+        existing_sessions = [key for key in day_group.keys() if key.startswith('session_')]
+        
+        next_session_number = len(existing_sessions) + 1
+        next_session_name = f'session_{next_session_number:03d}'
+        
+        session_group = day_group.create_group(next_session_name)
+        print(f"Session group '{next_session_name}' created under '{today_date}'.")
+        session_group.create_dataset('readings/timestamp', shape=(0,), maxshape=(None,), dtype='float64')
+        session_group.create_dataset('readings/angle', shape=(0,), maxshape=(None,), dtype='float32')
+        session_group.create_dataset('readings/distance', shape=(0,), maxshape=(None,))
+        session_group.attrs['start_time'] = datetime.now().isoformat()
+    
     stop_event.clear()
 
-    lidar_process = threading.Thread(target=start_scanning, args=(lidar, csv_file))
+    lidar_process = threading.Thread(target=start_scanning, args=(lidar, h5_file))
     lidar_process.start()
 
     return SUCCESS(200, "Lidar Scanning Started") 
