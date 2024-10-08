@@ -42,10 +42,14 @@ class LidarFileViewSet(viewsets.ModelViewSet):
         })
 
 class LidarViewSet(viewsets.ViewSet):
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['post'])
     def start(self, request):
         try:
-            start_lidar('run-1')
+            filename = request.data.get('filename')
+            if not filename:
+                return Response({"error": f"Filename not {provided}"}, status=status.HTTP_400_BAD_REQUEST)
+
+            start_lidar(filename)
             return Response({"message": "Lidar started successfully"}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
