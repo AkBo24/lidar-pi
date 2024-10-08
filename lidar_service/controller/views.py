@@ -48,7 +48,8 @@ class LidarViewSet(viewsets.ViewSet):
             filename = request.data.get('filename')
             if not filename:
                 return Response({"error": f"Filename not {provided}"}, status=status.HTTP_400_BAD_REQUEST)
-
+            if not LidarFile.objects.filter(filename=filename).exists():
+                return Response({"error": f"File does not exist"}, status=status.HTTP_404_NOT_FOUND)
             start_lidar(filename)
             return Response({"message": "Lidar started successfully"}, status=status.HTTP_200_OK)
         except Exception as e:
