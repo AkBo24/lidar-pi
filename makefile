@@ -5,6 +5,8 @@ DOCKER_IMAGE = lidar-app
 DOCKER_DEVICE = /dev/ttyUSB0
 DOCKER_PORT = 8000:8000
 DOCKER_CONTAINER_NAME = lidar-container
+LOCAL_APP_DIR = $(PWD)/lidar_files
+CONTAINER_APP_DIR = /lidar_files
 
 # Default command: build the Docker image
 build:
