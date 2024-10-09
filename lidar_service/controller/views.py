@@ -13,7 +13,7 @@ from .serializers import LidarFileSerializer
 # imported through path (look at init.py)
 from lidar_control import start_lidar, stop_lidar
 
-import h5py
+import h5py, os, csv
 
 def index(req):
     """
@@ -47,16 +47,51 @@ class LidarFileViewSet(viewsets.ModelViewSet):
     def download(self, request, filename=None):
         try:
             lidar_file = LidarFile.objects.get(filename=filename)
-            file_path = lidar_file.file.path
+            h5_file_path = lidar_file.file.path
+            csv_file_path = h5_file_path.replace('.h5', '.csv')
 
-            with open(file_path, 'rb') as f:
-                response = HttpResponse(f.read(), content_type='application/octet-stream')
-                response['Content-Disposition'] = f'attachment; filename={lidar_file.filename}'
+            # Convert the HDF5 file to a CSV file if it doesn't already exist
+            if not os.path.exists(csv_file_path):
+                self.convert_hdf5_to_csv(h5_file_path, csv_file_path)
+
+            # Serve the CSV file as a download
+            with open(csv_file_path, 'rb') as f:
+                response = HttpResponse(f.read(), content_type='text/csv')
+                response['Content-Disposition'] = f'attachment; filename={os.path.basename(csv_file_path)}'
                 return response
         except LidarFile.DoesNotExist:
             return Response({'error': 'File not found'}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def convert_hdf5_to_csv(self, h5_file_path, csv_file_path):
+        """
+        Converts the HDF5 file at `h5_file_path` into a CSV file at `csv_file_path`.
+        """
+        with h5py.File(h5_file_path, 'r') as f:
+            # Example: assuming data is under '/YYYY_MM_DD/session_xxx/readings'
+            # Adjust the paths according to your actual HDF5 file structure
+            for day_group_name in f.keys():
+                day_group = f[day_group_name]
+                
+                for session_name in day_group:
+                    session_group = day_group[session_name]
+                    readings = session_group['readings']
+
+                    timestamps = readings['timestamp'][:]
+                    angles = readings['angle'][:]
+                    distances = readings['distance'][:]
+
+                    # Write to CSV
+                    with open(csv_file_path, 'w', newline='') as csvfile:
+                        csv_writer = csv.writer(csvfile)
+                        csv_writer.writerow(['Timestamp', 'Angle', 'Distance'])
+
+                        # Write each row
+                        for timestamp, angle, distance in zip(timestamps, angles, distances):
+                            csv_writer.writerow([timestamp, angle, distance])
+
+
 
 class LidarViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['post'])
