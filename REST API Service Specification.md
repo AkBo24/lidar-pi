@@ -1,13 +1,13 @@
 ### **REST API Service Specification for Lidar Data Collection and Retrieval**
 
-**Role**: Principle Software Engineer  
+**Role**: Software Engineer  
 **Project**: REST API Service for Controlling and Accessing Lidar Data on Raspberry Pi
 
 ---
 
 ### **Overview**
 
-This service is responsible for managing Lidar sensor data collection from a YDLidar connected to a Raspberry Pi and making this data available via a RESTful API. The service will allow starting and stopping the Lidar data collection, list available data files, and download the data in CSV format.
+This service manages and exposes Lidar sensor data from a YDLidar connected to a Raspberry Pi via a RESTful API. The service will allow starting and stopping the Lidar data collection, list available data files, and download the data in CSV format.
 
 ---
 
@@ -39,8 +39,10 @@ This service is responsible for managing Lidar sensor data collection from a YDL
      - **Error**: `{ "error": "Lidar is already running" }`
    - **Error Handling**:
      - If the Lidar service is already running, an error is returned with status code `400`.
+     - If the file does not exist, an error is returned with status code `404`.
    - **Additional Notes**:
      - A single instance of the Lidar process is permitted at a time. The service tracks the process state and rejects subsequent start requests until the current process is stopped.
+     - The file must be created prior to running the lidar
 
 #### 2. **GET /lidar/stop**
    - **Description**: Stops the Lidar service and terminates data collection.
@@ -52,21 +54,48 @@ This service is responsible for managing Lidar sensor data collection from a YDL
    - **Additional Notes**:
      - This endpoint gracefully terminates the background process running the Lidar data collection.
 
-#### 3. **GET /lidar/files**
+#### 3. **GET /files**
    - **Description**: Lists all available Lidar data files.
    - **Response**:
      ```json
      {
        "files": [
-         "data_2024_01_01.h5",
-         "data_2024_01_02.h5"
+         {
+            "id": 1,
+            "filename": "run-1.h5",
+            "file": "http://0.0.0.0:8000/lidar_files/run-1.h5",
+            "uploaded_at": "2024-10-09T02:15:53.539823Z"
+         },
        ]
      }
      ```
    - **Additional Notes**:
      - The response includes the filenames of all stored HDF5 files in the storage directory.
 
-#### 4. **GET /lidar/files/{filename}/download**
+#### 4. **POST /files**
+   - **Description**: Create a file with the specified file name as HDF5.
+   - **Request**:
+     - **Body**: `{ "filename": "yourfilename.h5" }`
+   - **Response**:
+     ```JSON
+     {
+      "message": "File created successfully", 
+      "file_path": "/lidar_files/run-1.h5"
+     }
+     ``` 
+   - **Error Handling**:
+     - If the specified exists return `{ "error": "File already exists" }`.
+   - **Additional Notes**:
+     - Each file is structured as follows:
+     ```lua
+     lidar_data.h5
+     |-- /2024_10_08
+     |   |-- session_001
+     |   |-- session_002
+     |   |-- session_003 
+     ```
+
+#### 5. **GET /lidar/files/{filename}/download**
    - **Description**: Downloads the specified Lidar data file as a CSV.
    - **Parameters**:
      - **URL Path**: `{filename}` (e.g., `/lidar/files/data_2024_01_01/download`)
@@ -82,17 +111,17 @@ This service is responsible for managing Lidar sensor data collection from a YDL
 
 ### **Background Process Management**
 
-The Lidar data collection process runs asynchronously in the background using Python's `subprocess` module. It will:
+The Lidar data collection process runs asynchronously in the background using Python's `threading` module. It will:
 - Write data to the specified HDF5 file in a buffered manner to ensure data integrity and reduce I/O overhead.
 - Only allow one active process at a time. A global state or locking mechanism (e.g., a flag or PID tracking) ensures that multiple instances of the Lidar process are not spawned simultaneously.
+    - The global state will be a flag within the Django
 
 #### **Subprocess Handling**:
 - **Starting the Lidar Service**:
-  - Managed via `subprocess.Popen()`.
+  - Managed via `threading.Thread()`.
   - The process should handle file locking to prevent corruption if the Pi crashes during a write.
 - **Stopping the Lidar Service**:
   - The process is stopped gracefully via `process.terminate()`.
-  - On stopping, the HDF5 file should be closed properly to prevent corruption.
 
 ---
 
@@ -111,7 +140,7 @@ The Lidar data collection process runs asynchronously in the background using Py
 ### **Concurrency Management**
 
 - **Concurrency Control**: 
-   - A global flag (`is_lidar_running`) ensures that no other start requests are processed while the Lidar is running.
+   - A global cacheflag (`lidar_running`) ensures that no other start requests are processed while the Lidar is running.
    - Only one instance of the Lidar subprocess is allowed to run at a time.
    - This mechanism prevents multiple writes to the same file or process interference.
 
@@ -149,34 +178,3 @@ The Lidar data collection process runs asynchronously in the background using Py
 
 The service will be available within the home network by binding to `0.0.0.0`. Port forwarding can be configured on the router if external access is required. Proper security considerations (e.g., firewall, VPN) should be in place for accessing the service remotely.
 
----
-
-### **Next Steps**
-
-1. **Implement the Subprocess Management for Lidar**: Implement starting and stopping of the Lidar process using `subprocess.Popen()` with proper concurrency control.
-2. **Implement the API Endpoints**: Develop the endpoints using Django Rest Framework and ensure they return appropriate responses.
-3. **Test and Deploy**: Test the service on the Raspberry Pi, ensuring data integrity, process management, and that files are correctly stored and downloadable as CSV.
-
----
-
-Here is my implementations of the stop and cleanup functions:
-```
-ERROR = lambda error_code, message : {'error_code': error_code, 'message': message}
-SUCCESS = lambda status, message : {'status': status, 'message': message}
-
-def stop_lidar():
-    global lidar_process, lidar
-    if not lidar_process or not lidar:
-        return ERROR(400, 'Lidar is not running')
-    lidar_process = None
-    cleanup()
-
-def cleanup():
-    global lida
-    if not lidar:
-        return ERROR(400, 'Cleanup called but lidar not initialized...')
-    lidar.turnoff()
-    lidar.disconnecting()
-
-```
-Note that I created two lambda functions to return errors or statuses. I also added a lidar global variable.
