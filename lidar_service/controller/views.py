@@ -1,6 +1,7 @@
 from django.shortcuts import render, HttpResponse
 from django.http import JsonResponse
 from django.core.files.base import ContentFile
+from django.core.cache import cache
 
 from rest_framework import viewsets
 from rest_framework import status
@@ -96,6 +97,9 @@ class LidarFileViewSet(viewsets.ModelViewSet):
 class LidarViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['post'])
     def start(self, request):
+        if cache.get('lidar_running'):
+            return Response({"error": "Lidar is already running"}, status=status.HTTP_400_BAD_REQUEST)
+        cache.set('lidar_running', True)
         try:
             filename = request.data.get('filename')
             if not filename:
@@ -103,14 +107,18 @@ class LidarViewSet(viewsets.ViewSet):
             if not LidarFile.objects.filter(filename=filename).exists():
                 return Response({"error": f"File does not exist"}, status=status.HTTP_404_NOT_FOUND)
             start_lidar(filename)
-            return Response({"message": "Lidar started successfully"}, status=status.HTTP_200_OK)
+            return Response({"message": f"Lidar started successfully"}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=['get'])
     def stop(self, request):
+        if not cache.get('lidar_running'):
+            return Response({"error": "Lidar is already stopped"}, status=status.HTTP_400_BAD_REQUEST)
+        cache.set('lidar_running', False)
         try:
             stop_lidar()  # Replace with your function to start the Lidar
+            cache.set('lidar_running', False)
             return Response({"message": "Lidar stopped successfully"}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

@@ -131,9 +131,6 @@ def start_lidar(filename="lidar_data.csv"):
     """
     global lidar_process, lidar, stop_event
 
-    if lidar_process or lidar:
-        return ERROR(400, 'Lidar is already running')
-
     lidar = init_lidar()
 
     h5_file = os.path.join('lidar_files', filename)
@@ -170,8 +167,6 @@ def start_lidar(filename="lidar_data.csv"):
 
 def stop_lidar():
     global lidar_process, lidar
-    if not lidar_process or not lidar:
-        return ERROR(400, 'Lidar is not running')
 
     stop_event.set()
     lidar_process.join()
