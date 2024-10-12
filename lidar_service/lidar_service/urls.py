@@ -19,7 +19,8 @@ from django.urls import path, include
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('', include("controller.urls")),
+    path('api/', include("controller.urls")),
+    path('api/sift-stack/', include("sift_stack.urls")),
 
     # third party
     path('api-auth/', include('rest_framework.urls')),
