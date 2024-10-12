@@ -26,6 +26,7 @@ RUN python3 -m venv /usr/src/app/venv
 
 # Install Django and other dependencies inside the virtual environment
 COPY requirements.txt /usr/src/app/
+COPY .env /usr/src/app/
 RUN /usr/src/app/venv/bin/pip install --no-cache-dir /usr/src/app/YDLidar-SDK/
 RUN /usr/src/app/venv/bin/pip install --no-cache-dir -r /usr/src/app/requirements.txt
 

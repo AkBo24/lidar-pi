@@ -5,6 +5,8 @@ from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.decorators import action
 
+from csv_ingest import main as ingest_main
+
 LidarFile = apps.get_model('controller', 'LidarFile')
 
 # Create your views here.
@@ -12,7 +14,7 @@ def index(req):
     return HttpResponse('sift-stack home') 
 
 class IngestFileViewSet(viewsets.ViewSet):
-    @action(detail=False, methods=['post'])
+    @action(detail=False, methods=['post'], url_path='ingest-csv', url_name='ingest-csv')
     def ingest_csv(self, request):
         try:
             filename = request.data.get('filename')
@@ -21,6 +23,14 @@ class IngestFileViewSet(viewsets.ViewSet):
                         {'error': "Filename not provided"},
                         status = status.HTTP_400_BAD_REQUEST
                 )
+
+            if not LidarFile.objects.filter(filename=filename).exists():
+                return Response(
+                        {"error": "File does not exist"}, 
+                        status=status.HTTP_404_NOT_FOUND
+                )
+
+            ingest_main(filename)
 
             return Response(
                     {"message": 'compiled endpoint'}, 

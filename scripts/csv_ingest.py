@@ -64,7 +64,7 @@ def load_telemetry_config(
            flows=[FlowConfig(name="data", channels=channels)] # one flow for one csv?
     )
 
-if __name__ == "__main__":
+def main(filename):
     load_dotenv()
 
     sift_uri = os.getenv("SIFT_API_URI")
@@ -100,4 +100,3 @@ if __name__ == "__main__":
         with ingestion_service.buffered_ingestion() as buffered_ingestion:
             buffered_ingestion.ingest_flows(*flows_data)
 
-    print('Successfully compiled')
