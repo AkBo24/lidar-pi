@@ -1,2 +1,3 @@
+.env
 venv/
-lidar_files
+lidar_files/
