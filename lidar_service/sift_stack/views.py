@@ -23,6 +23,13 @@ class IngestFileViewSet(viewsets.ViewSet):
                         {'error': "Filename not provided"},
                         status = status.HTTP_400_BAD_REQUEST
                 )
+            runname = request.data.get('runname')
+            if not runname:
+                return Response(
+                        {'error': "runname not provided"},
+                        status = status.HTTP_400_BAD_REQUEST
+                )
+
 
             if not LidarFile.objects.filter(filename=filename).exists():
                 return Response(
@@ -30,7 +37,7 @@ class IngestFileViewSet(viewsets.ViewSet):
                         status=status.HTTP_404_NOT_FOUND
                 )
 
-            ingest_main(filename)
+            ingest_main(filename, runname)
 
             return Response(
                     {"message": 'compiled endpoint'}, 

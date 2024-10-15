@@ -65,6 +65,19 @@ class LidarFileViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    @action(detail=False, methods=['post'], url_path="convert-to-csv", url_name="convert-to-csv")
+    def convert_to_csv(self, request):
+        filename = request.data.get('filename')
+      
+        if not filename:
+            return Response({'error': 'filename not provided'}, status=status.HTTP_400_BAD_REQUEST)
+
+        file = LidarFile.objects.filter(filename=filename)
+        if not file.exists():
+            return Response({'error': 'File does not exist'}, status=status.HTTP_404_NOT_FOUND)
+
+        return Response({'message':'Successfully converted file'}, status=status.HTTP_200_OK)
+
     def convert_hdf5_to_csv(self, h5_file_path, csv_file_path):
         """
         Converts the HDF5 file at `h5_file_path` into a CSV file at `csv_file_path`.

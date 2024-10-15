@@ -64,7 +64,7 @@ def load_telemetry_config(
            flows=[FlowConfig(name="data", channels=channels)] # one flow for one csv?
     )
 
-def main(filename):
+def main(filename, runname):
     load_dotenv()
 
     sift_uri = os.getenv("SIFT_API_URI")
@@ -94,9 +94,8 @@ def main(filename):
                 config = telemetry_config
         )
 
-        run_name = f"{asset_name}-{datetime.now()}"
+        run_name = f"{runname}-{datetime.now()}"
         ingestion_service.attach_run(channel, run_name, "test csv ingestion")
 
         with ingestion_service.buffered_ingestion() as buffered_ingestion:
             buffered_ingestion.ingest_flows(*flows_data)
-
