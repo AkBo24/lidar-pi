@@ -61,7 +61,7 @@ def append_to_hdf5(timestamp_dataset, angle_dataset, distance_dataset, epoch_tim
     angle_dataset[-num_new_entries:] = angles
     distance_dataset[-num_new_entries:] = distances
 
-def start_scanning(lidar, h5_file):
+def start_scanning(lidar, h5_file, path):
     global stop_event
 
     # Turn on the LiDAR sensor
@@ -69,7 +69,7 @@ def start_scanning(lidar, h5_file):
     print("LiDAR scanning started.")
 
     # Open the HDF5 file in append mode to write data
-    with h5py.File(h5_file, 'a') as f:
+    with h5py.File(path, 'a') as f:
         # Get today's date as the group name
         today_date = datetime.now().strftime('%Y_%m_%d')
         
@@ -121,7 +121,7 @@ def start_scanning(lidar, h5_file):
     print("LiDAR scanning stopped.")
 
 
-def start_lidar(filename="lidar_data.csv"):
+def start_lidar(filename, path):
     """
     1. init the lidar
     2. create data directory if it doesnt exist
@@ -134,7 +134,7 @@ def start_lidar(filename="lidar_data.csv"):
     lidar = init_lidar()
 
     h5_file = os.path.join('lidar_files', filename)
-    with h5py.File(h5_file, 'a') as f:
+    with h5py.File(path, 'a') as f:
         # Generate today's date as the group name
         today_date = datetime.now().strftime('%Y_%m_%d')
         
@@ -160,7 +160,7 @@ def start_lidar(filename="lidar_data.csv"):
     
     stop_event.clear()
 
-    lidar_process = threading.Thread(target=start_scanning, args=(lidar, h5_file))
+    lidar_process = threading.Thread(target=start_scanning, args=(lidar, h5_file, path))
     lidar_process.start()
 
     return SUCCESS(200, "Lidar Scanning Started") 

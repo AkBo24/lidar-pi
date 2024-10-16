@@ -79,7 +79,7 @@ def main(filename, runname):
     ingestion_client_key = os.getenv("INGESTION_CLIENT_KEY")
     assert ingestion_client_key, "expected 'INGESTION_CLIENT_KEY' environment variable to be set"
 
-    lidar_data_csv = Path("../", "lidar_files", "test-run.csv")
+    lidar_data_csv = Path("../", "lidar_files", "filename")
 
     telemetry_config = load_telemetry_config(
             lidar_data_csv, asset_name, ingestion_client_key

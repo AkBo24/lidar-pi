@@ -1,7 +1,10 @@
 from django.shortcuts import render, HttpResponse
+from django.core.files.storage import default_storage
 from django.http import JsonResponse
-from django.core.files.base import ContentFile
+from django.conf import settings
+from django.core.files import File
 from django.core.cache import cache
+from django.core.files.base import ContentFile
 
 from rest_framework import viewsets
 from rest_framework import status
@@ -47,6 +50,23 @@ class LidarFileViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def download(self, request, filename=None):
         try:
+            file = LidarFile.objects.get(filename=filename)
+            with open(file.file.path, 'rb') as f:
+                if filename.endswith('.csv'):
+                    response = HttpResponse(f.read(), content_type='text/csv')
+                else:
+                    response = HttpResponse(f.read(), content_type='application/x-hdf')
+
+                response['Content-Disposition'] = f'attachment; filename={os.path.basename(file.file.path)}'
+                return response
+            
+            return Response({'message': 'compiled'}, status=status.HTTP_200_OK)
+        except LidarFile.DoesNotExist:
+            return Response({'error': f'File not found {filename}'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        """
+        try:
             lidar_file = LidarFile.objects.get(filename=filename)
             h5_file_path = lidar_file.file.path
             csv_file_path = h5_file_path.replace('.h5', '.csv')
@@ -64,6 +84,7 @@ class LidarFileViewSet(viewsets.ModelViewSet):
             return Response({'error': 'File not found'}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        """
 
     @action(detail=False, methods=['post'], url_path="convert-to-csv", url_name="convert-to-csv")
     def convert_to_csv(self, request):
@@ -72,40 +93,57 @@ class LidarFileViewSet(viewsets.ModelViewSet):
         if not filename:
             return Response({'error': 'filename not provided'}, status=status.HTTP_400_BAD_REQUEST)
 
-        file = LidarFile.objects.filter(filename=filename)
-        if not file.exists():
-            return Response({'error': 'File does not exist'}, status=status.HTTP_404_NOT_FOUND)
+        if not filename.endswith('.h5'):
+            return Response({'error': 'filename not HDF5 file type'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        csv_filename = request.data.get('csvfilename', filename.replace('.h5','.csv'))
+        if LidarFile.objects.filter(filename=csv_filename).exists():
+            return Response({'error': 'csv filename already exists'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            lidar_file = LidarFile.objects.get(filename=filename)
+            h5_file_path = lidar_file.file.path
+            csv_file_path = os.path.join(settings.MEDIA_ROOT, 'lidar_files', csv_filename)
 
-        return Response({'message':'Successfully converted file'}, status=status.HTTP_200_OK)
+            # Convert the HDF5 file to a CSV file if it doesn't already exist
+            if not os.path.exists(csv_file_path):
+                self.convert_hdf5_to_csv(h5_file_path, csv_file_path, csv_filename)
 
-    def convert_hdf5_to_csv(self, h5_file_path, csv_file_path):
+            # Serve the CSV file as a download
+            return Response({'message':f'Successfully converted file at {csv_file_path}'}, status=status.HTTP_200_OK)
+        except LidarFile.DoesNotExist:
+            return Response({'error': 'File not found'}, status=status.HTTP_404_NOT_FOUND)
+        """
+        except Exception as e:
+            return Response({'error': str(e), 'paths': f"{h5_file_path}, {csv_file_path}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        """
+
+    def convert_hdf5_to_csv(self, h5_file_path, csv_file_path, csv_filename):
         """
         Converts the HDF5 file at `h5_file_path` into a CSV file at `csv_file_path`.
         """
-        with h5py.File(h5_file_path, 'r') as f:
-            # Example: assuming data is under '/YYYY_MM_DD/session_xxx/readings'
-            # Adjust the paths according to your actual HDF5 file structure
-            for day_group_name in f.keys():
-                day_group = f[day_group_name]
-                
-                for session_name in day_group:
-                    session_group = day_group[session_name]
-                    readings = session_group['readings']
+        new_lidar_csv_file = LidarFile(filename=csv_filename) 
+        new_lidar_csv_file.file.save(csv_filename, ContentFile(''), save=True)
 
-                    timestamps = readings['timestamp'][:]
-                    angles = readings['angle'][:]
-                    distances = readings['distance'][:]
+        with open(new_lidar_csv_file.file.path, 'w', newline='') as csvfile:
+            csv_writer = csv.writer(csvfile)
+            csv_writer.writerow(['Timestamp', 'Angle', 'Distance'])
 
-                    # Write to CSV
-                    with open(csv_file_path, 'w', newline='') as csvfile:
-                        csv_writer = csv.writer(csvfile)
-                        csv_writer.writerow(['Timestamp', 'Angle', 'Distance'])
+            # Open the HDF5 file and extract the data (adjust according to the structure)
+            with h5py.File(h5_file_path, 'r') as f:
+                for day_group_name in f.keys():
+                    day_group = f[day_group_name]
+                    for session_name in day_group:
+                        session_group = day_group[session_name]
+                        readings = session_group['readings']
 
-                        # Write each row
+                        timestamps = readings['timestamp'][:]
+                        angles = readings['angle'][:]
+                        distances = readings['distance'][:]
+
+                        # Write each row to the CSV file
                         for timestamp, angle, distance in zip(timestamps, angles, distances):
                             csv_writer.writerow([timestamp, angle, distance])
-
-
 
 class LidarViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['post'])
@@ -119,7 +157,7 @@ class LidarViewSet(viewsets.ViewSet):
                 return Response({"error": f"Filename not {provided}"}, status=status.HTTP_400_BAD_REQUEST)
             if not LidarFile.objects.filter(filename=filename).exists():
                 return Response({"error": f"File does not exist"}, status=status.HTTP_404_NOT_FOUND)
-            start_lidar(filename)
+            start_lidar(filename, os.path.join(settings.MEDIA_ROOT, 'lidar_files', filename))
             return Response({"message": f"Lidar started successfully"}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
