@@ -65,26 +65,6 @@ class LidarFileViewSet(viewsets.ModelViewSet):
             return Response({'error': f'File not found {filename}'}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        """
-        try:
-            lidar_file = LidarFile.objects.get(filename=filename)
-            h5_file_path = lidar_file.file.path
-            csv_file_path = h5_file_path.replace('.h5', '.csv')
-
-            # Convert the HDF5 file to a CSV file if it doesn't already exist
-            if not os.path.exists(csv_file_path):
-                self.convert_hdf5_to_csv(h5_file_path, csv_file_path)
-
-            # Serve the CSV file as a download
-            with open(csv_file_path, 'rb') as f:
-                response = HttpResponse(f.read(), content_type='text/csv')
-                response['Content-Disposition'] = f'attachment; filename={os.path.basename(csv_file_path)}'
-                return response
-        except LidarFile.DoesNotExist:
-            return Response({'error': 'File not found'}, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        """
 
     @action(detail=False, methods=['post'], url_path="convert-to-csv", url_name="convert-to-csv")
     def convert_to_csv(self, request):
@@ -101,24 +81,16 @@ class LidarFileViewSet(viewsets.ModelViewSet):
             return Response({'error': 'csv filename already exists'}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
-            lidar_file = LidarFile.objects.get(filename=filename)
-            h5_file_path = lidar_file.file.path
-            csv_file_path = os.path.join(settings.MEDIA_ROOT, 'lidar_files', csv_filename)
+            h5_lidar_file = LidarFile.objects.get(filename=filename)
+            self.convert_hdf5_to_csv(h5_lidar_file.file.path, csv_filename)
 
-            # Convert the HDF5 file to a CSV file if it doesn't already exist
-            if not os.path.exists(csv_file_path):
-                self.convert_hdf5_to_csv(h5_file_path, csv_file_path, csv_filename)
-
-            # Serve the CSV file as a download
-            return Response({'message':f'Successfully converted file at {csv_file_path}'}, status=status.HTTP_200_OK)
+            return Response({'message':f'Successfully converted file'}, status=status.HTTP_200_OK)
         except LidarFile.DoesNotExist:
             return Response({'error': 'File not found'}, status=status.HTTP_404_NOT_FOUND)
-        """
         except Exception as e:
-            return Response({'error': str(e), 'paths': f"{h5_file_path}, {csv_file_path}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        """
+            return Response({'error': str(e) }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    def convert_hdf5_to_csv(self, h5_file_path, csv_file_path, csv_filename):
+    def convert_hdf5_to_csv(self, h5_file_path, csv_filename):
         """
         Converts the HDF5 file at `h5_file_path` into a CSV file at `csv_file_path`.
         """
