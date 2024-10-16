@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.shortcuts import render, HttpResponse
 from django.apps import apps
 
@@ -6,6 +7,8 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 
 from csv_ingest import main as ingest_main
+
+import os
 
 LidarFile = apps.get_model('controller', 'LidarFile')
 
@@ -37,7 +40,7 @@ class IngestFileViewSet(viewsets.ViewSet):
                         status=status.HTTP_404_NOT_FOUND
                 )
 
-            ingest_main(filename, runname)
+            ingest_main(filename, runname, os.path.join(settings.MEDIA_ROOT, 'lidar_files', filename))
 
             return Response(
                     {"message": 'compiled endpoint'}, 

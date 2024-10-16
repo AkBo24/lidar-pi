@@ -64,7 +64,7 @@ def load_telemetry_config(
            flows=[FlowConfig(name="data", channels=channels)] # one flow for one csv?
     )
 
-def main(filename, runname):
+def main(filename, runname, path_to_csv):
     load_dotenv()
 
     sift_uri = os.getenv("SIFT_API_URI")
@@ -79,12 +79,10 @@ def main(filename, runname):
     ingestion_client_key = os.getenv("INGESTION_CLIENT_KEY")
     assert ingestion_client_key, "expected 'INGESTION_CLIENT_KEY' environment variable to be set"
 
-    lidar_data_csv = Path("../", "lidar_files", "filename")
-
     telemetry_config = load_telemetry_config(
-            lidar_data_csv, asset_name, ingestion_client_key
+            path_to_csv, asset_name, ingestion_client_key
     )
-    flows_data = parse_csv(lidar_data_csv, telemetry_config)
+    flows_data = parse_csv(path_to_csv, telemetry_config)
 
     sift_channel_conf = SiftChannelConfig(uri = sift_uri, apikey = apikey)
 
