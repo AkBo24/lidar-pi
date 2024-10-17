@@ -1,0 +1,15 @@
+
+services:
+  app:
+    build: .
+    command: python3 /usr/src/app/lidar_service/manage.py runserver 0.0.0.0:8000
+    volumes:
+      - ./lidar_service:/usr/src/app/lidar_service
+      - ./scripts:/usr/src/app/scripts
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    devices:
+      - /dev/ttyUSB0:/dev/ttyUSB0
+
