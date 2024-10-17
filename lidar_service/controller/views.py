@@ -11,6 +11,7 @@ from rest_framework import status
 from rest_framework import response
 from rest_framework.response import Response
 from rest_framework.decorators import action
+from drf_spectacular.utils import extend_schema, OpenApiParameter
 
 from .models import LidarFile
 from .serializers import LidarFileSerializer
@@ -34,6 +35,7 @@ def index(req):
 class LidarFileViewSet(viewsets.ModelViewSet):
     queryset = LidarFile.objects.all()
     serializer_class = LidarFileSerializer
+    lookup_field = 'filename'
 
     def create(self, request, *args, **kwargs):
         filename = request.data.get('filename', 'linear_data.h5')
@@ -47,7 +49,7 @@ class LidarFileViewSet(viewsets.ModelViewSet):
             'file_path': lidar_file.file.url
         })
 
-    @action(detail=False, methods=['get'])
+    @action(detail=True, methods=['get'], url_path='download')
     def download(self, request, filename=None):
         try:
             file = LidarFile.objects.get(filename=filename)
@@ -118,6 +120,24 @@ class LidarFileViewSet(viewsets.ModelViewSet):
                             csv_writer.writerow([timestamp, angle, distance])
 
 class LidarViewSet(viewsets.ViewSet):
+
+    @extend_schema(
+        request={
+            'application/json': {
+                'type': 'object',
+                'properties': {
+                    'filename': {'type': 'string', 'description': 'Name of the file to start Lidar'},
+                },
+                'required': ['filename'],
+            },
+        },
+        responses={
+            200: {'description': 'Lidar started successfully'},
+            400: {'description': 'Bad request. Filename not provided or Lidar already running'},
+            404: {'description': 'File not found'},
+            500: {'description': 'Internal server error'}
+        },
+    )
     @action(detail=False, methods=['post'])
     def start(self, request):
         if cache.get('lidar_running'):
@@ -134,6 +154,12 @@ class LidarViewSet(viewsets.ViewSet):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    @extend_schema(
+        responses={
+            200: {'description': "Lidar stopped successfully"},
+            400: {'description': "Bad request. Lidar already stopped"}
+        }
+    )
     @action(detail=False, methods=['get'])
     def stop(self, request):
         if not cache.get('lidar_running'):
