@@ -13,10 +13,9 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Set up the project directory
-RUN mkdir /usr/src/app
-
 # Clone the YDLidar SDK and build it
-RUN git clone https://github.com/YDLIDAR/YDLidar-SDK.git /usr/src/app/YDLidar-SDK \
+RUN mkdir /usr/src/app \
+    && git clone https://github.com/YDLIDAR/YDLidar-SDK.git /usr/src/app/YDLidar-SDK \
     && cmake -B /usr/src/app/YDLidar-SDK/build -S /usr/src/app/YDLidar-SDK \
     && cmake --build /usr/src/app/YDLidar-SDK/build \
     && cmake --install /usr/src/app/YDLidar-SDK/build
@@ -41,8 +40,8 @@ COPY ./lidar_service /usr/src/app/lidar_service
 ENV PYTHONPAT="/usr/src/app/scripts"
 
 # Expose the Django default port (8000)
-EXPOSE 8000
+# EXPOSE 8000
 
 # CMD ["/bin/bash"]
- CMD ["python", "/usr/src/app/lidar_service/manage.py", "runserver", "0.0.0.0:8000"]
+# CMD ["python", "/usr/src/app/lidar_service/manage.py", "runserver", "0.0.0.0:8000"]
 

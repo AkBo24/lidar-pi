@@ -1,62 +1,63 @@
-# Makefile for Lidar App Docker Management
-
 # Variables
-DOCKER_IMAGE = lidar-app
-DOCKER_DEVICE = /dev/ttyUSB0
-DOCKER_PORT = 8000:8000
-DOCKER_CONTAINER_NAME = lidar-container
-LOCAL_APP_DIR = $(PWD)/lidar_files
-CONTAINER_APP_DIR = /lidar_files
+DOCKER_COMPOSE = docker compose
+APP_CONTAINER = app
+PYTHON = $(DOCKER_COMPOSE) exec $(APP_CONTAINER) /usr/src/app/venv/bin/python
+MANAGE_PY = $(PYTHON) /usr/src/app/lidar_service/manage.py
 
-# Default command: build the Docker image
+# Help
+.PHONY: help
+help:
+	@echo "Makefile for Django project"
+	@echo
+	@echo "Available commands:"
+	@echo "  make build           Build the Docker containers"
+	@echo "  make up              Start the Docker containers"
+	@echo "  make down            Stop the Docker containers"
+	@echo "  make shell           Open a shell inside the app container"
+	@echo "  make migrate         Apply migrations"
+	@echo "  make createsuperuser Create a Django superuser"
+	@echo "  make run             Run the Django development server"
+	@echo "  make collectstatic   Collect static files"
+	@echo "  make test            Run Django tests"
+	@echo "  make makemigrations  Create new migrations"
+	@echo "  make clean           Remove Docker containers, volumes, and Django's pyc files"
+
+# Build and Run
 build:
-	docker build -t $(DOCKER_IMAGE) .
+	$(DOCKER_COMPOSE) build
 
-# Stop and remove the existing container if it exists
-clean-container:
-	@if [ $$(docker ps -a -q -f name=$(DOCKER_CONTAINER_NAME)) ]; then \
-		docker stop $(DOCKER_CONTAINER_NAME); \
-		docker rm $(DOCKER_CONTAINER_NAME); \
-	fi
+up:
+	$(DOCKER_COMPOSE) up -d --build
 
-# Stop the running container
-stop:
-	docker stop $(DOCKER_CONTAINER_NAME)
-
-# Remove the container after stopping it
-clean: stop
-	docker rm $(DOCKER_CONTAINER_NAME)
-
-# Run Django makemigrations inside the container
-makemigrations:
-	docker exec -it $(DOCKER_CONTAINER_NAME) python /usr/src/app/lidar_service/manage.py makemigrations
-
-# Run Django migrate inside the container
-migrate:
-	docker exec -it $(DOCKER_CONTAINER_NAME) python /usr/src/app/lidar_service/manage.py migrate
-	
-# Run the container in interactive mode with volume mount
-run: clean-container
-	docker run --name $(DOCKER_CONTAINER_NAME) \
-		--device=$(DOCKER_DEVICE):$(DOCKER_DEVICE) \
-		-p $(DOCKER_PORT) \
-		-v $(LOCAL_APP_DIR):$(CONTAINER_APP_DIR) \
-		-it $(DOCKER_IMAGE)
-
-# Run the container in detached mode with volume mount
-run-detached: clean-container
-	docker run --name $(DOCKER_CONTAINER_NAME) \
-		--device=$(DOCKER_DEVICE):$(DOCKER_DEVICE) \
-		-p $(DOCKER_PORT) \
-		-v $(LOCAL_APP_DIR):$(CONTAINER_APP_DIR) \
-		-d $(DOCKER_IMAGE)
+down:
+	$(DOCKER_COMPOSE) down
 
 shell:
-	docker exec -it lidar-container sh 
+	$(DOCKER_COMPOSE) exec $(APP_CONTAINER) /bin/bash
 
-# Shortcut to build, run, and start the container
-build-run: build run
+# Django Tasks
+migrate:
+	$(MANAGE_PY) migrate
 
-# Rebuild the image, run the container in detached mode, and make migrations
-setup-detached: build run-detached makemigrations migrate
+createsuperuser:
+	$(MANAGE_PY) createsuperuser
+
+run:
+	$(MANAGE_PY) runserver 0.0.0.0:8000
+
+collectstatic:
+	$(MANAGE_PY) collectstatic --noinput
+
+test:
+	$(MANAGE_PY) test
+
+makemigrations:
+	$(MANAGE_PY) makemigrations
+
+# Clean Up
+.PHONY: clean
+clean:
+	$(DOCKER_COMPOSE) down --volumes --remove-orphans
+	find . -name "*.pyc" -exec rm -f {} \;
+	find . -name "__pycache__" -exec rm -rf {} \;
 
